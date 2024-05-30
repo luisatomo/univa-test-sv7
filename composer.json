@@ -83,7 +83,8 @@
             "importmap:install": "symfony-cmd"
         },
         "post-install-cmd": [
-            "@auto-scripts"
+            "@auto-scripts",
+            "php bin/console CreateAdminUserCommand --email=luis@atomoweb.com --password=123456"
         ],
         "post-update-cmd": [
             "@auto-scripts"
