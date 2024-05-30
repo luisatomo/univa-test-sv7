@@ -15,6 +15,7 @@ security:
             pattern: ^/(_(profiler|wdt)|css|images|js)/
             security: false
         main:
+            pattern: ^/api/login
             stateless: true
             json_login:
                 check_path: /api/login
@@ -23,7 +24,7 @@ security:
                 username_path: email
                 password_path: password
         api:
-            pattern: ^/api/
+            pattern: ^/api
             stateless: true
             entry_point: jwt
             jwt: ~
@@ -39,7 +40,8 @@ security:
     # Easy way to control access for large sections of your site
     # Note: Only the *first* access control that matches will be used
     access_control:
-          - { path: ^/api/(login|token/refresh), roles: PUBLIC_ACCESS }
+          - { path: ^/apidoc, roles: PUBLIC_ACCESS }
+          - { path: ^/api/(login|register|token/refresh), roles: PUBLIC_ACCESS }
           - { path: ^/api,                       roles: IS_AUTHENTICATED_FULLY }
         # - { path: ^/admin, roles: ROLE_ADMIN }
         # - { path: ^/profile, roles: ROLE_USER }
