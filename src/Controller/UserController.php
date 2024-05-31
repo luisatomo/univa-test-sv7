@@ -62,29 +62,86 @@ class UserController extends AbstractController
         return new JsonResponse($serializedUsers, Response::HTTP_OK, [], true);
     }
 
-    #[Route('/{id}', name: 'user_show', methods: ['GET'])]
-    public function show(int $id): Response
+    #[Route('/{uuid}', name: 'user_show', methods: ['GET'])]
+    #[OASecurity(name: 'Bearer')]
+    #[OA\Get(
+        summary: "List specific user by UUID",
+        description: "Returns one user",
+        responses: [
+        new OA\Response(
+            response: 200,
+            description: 'Returns one user',
+            content: new OA\JsonContent(
+                ref: new Model(type: User::class, groups: ['list_user'])
+            )
+        ),
+        new OA\Response(
+            response: 401,
+            description: 'Not Authorized',
+        )]
+    )]
+    public function show(string $uuid): Response
     {
-        $user = $this->entityManager->getRepository(User::class)->find($id);
+        $user = $this->entityManager->getRepository(User::class)->findOneBy(['uuid' => $uuid]);
         if (!$user) {
             return new Response('User not found', Response::HTTP_NOT_FOUND);
         }
 
         $this->authorizeAdminOrOwner($user);
 
-        $serializedUser = $this->serializer->serialize($user, 'json');
+        $context = (new ObjectNormalizerContextBuilder())
+            ->withGroups('list_user')
+            ->toArray();
+
+        $serializedUser = $this->serializer->serialize($user, 'json', $context);
 
         return new JsonResponse($serializedUser, Response::HTTP_OK, [], true);
     }
 
     #[Route('/', name: 'user_create', methods: ['POST'])]
+    #[OASecurity(name: 'Bearer')]
+    #[OA\Post(
+        summary: "Create a new user",
+        description: "Creates a new user account.",
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                type: "object",
+                properties: [
+                    new OA\Property(property: "email", type: "string", example: "user@example.com"),
+                    new OA\Property(property: "password", type: "string", example: "password123"),
+                    new OA\Property(
+                        property: "roles",
+                        type: "array",
+                        items: new OA\Items(type: "string", example: "ROLE_USER")
+                    )
+                ]
+            )
+        ),
+        responses: [
+             new OA\Response(
+                response: 201,
+                description: "User created successfully",
+                content: new OA\JsonContent(
+                    type: "object",
+                    properties: [
+                        new OA\Property(property: "id", type: "integer", example: "1"),
+                        new OA\Property(property: "email", type: "string", example: "user@example.com"),
+                        new OA\Property(property: "roles", type: "array", items: new OA\Items(type: "string", example: "ROLE_USER")),
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 400,
+                description: "Invalid input",
+            ),
+        ],
+    )]
     public function create(Request $request): Response
     {
         $this->denyAccessUnlessGranted('ROLE_ADMIN');
 
         $user = $this->serializer->deserialize($request->getContent(), User::class, 'json');
-
-        $password = bin2hex($user->getPassword());
 
         $encodedPassword = $this->passwordEncoder->hashPassword($user, $user->getPassword());
 
@@ -93,14 +150,13 @@ class UserController extends AbstractController
         $this->entityManager->persist($user);
         $this->entityManager->flush();
 
-        $data = [
-            'id' => $user->getId(),
-            'username' => $user->getEmail(),
-            'password' => $password,
-            'roles' => $user->getRoles(),
-        ];
+        $context = (new ObjectNormalizerContextBuilder())
+            ->withGroups('list_user')
+            ->toArray();
 
-        return new JsonResponse($data, Response::HTTP_CREATED);
+        $serializedUser = $this->serializer->serialize($user, 'json', $context);
+
+        return new JsonResponse($serializedUser, Response::HTTP_CREATED);
     }
 
     #[Route('/{id}', name: 'user_update', methods: ['PUT'])]
