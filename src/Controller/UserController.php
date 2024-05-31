@@ -108,12 +108,12 @@ class UserController extends AbstractController
             content: new OA\JsonContent(
                 type: "object",
                 properties: [
-                    new OA\Property(property: "email", type: "string", example: "user@example.com"),
-                    new OA\Property(property: "password", type: "string", example: "password123"),
+                    new OA\Property(property: "email", type: "string", example: "user@example.com", required: []),
+                    new OA\Property(property: "password", type: "string", example: "password123", required: []),
                     new OA\Property(
                         property: "roles",
                         type: "array",
-                        items: new OA\Items(type: "string", example: "ROLE_USER")
+                        items: new OA\Items(type: "string", example: "ROLE_USER", required: [])
                     )
                 ]
             )
@@ -159,25 +159,75 @@ class UserController extends AbstractController
         return new JsonResponse($serializedUser, Response::HTTP_CREATED);
     }
 
-    #[Route('/{id}', name: 'user_update', methods: ['PUT'])]
-    public function update(Request $request, int $id): Response
+    #[Route('/{uuid}', name: 'user_update', methods: ['PUT'])]
+    #[OASecurity(name: 'Bearer')]
+    #[OA\Put(
+        summary: "Update a user",
+        description: "Owner or admin updates a user.",
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                type: "object",
+                properties: [
+                    new OA\Property(property: "email", type: "string", example: "user@example.com", required: []),
+                    new OA\Property(property: "password", type: "string", example: "password123", required: []),
+                    new OA\Property(
+                        property: "roles",
+                        type: "array",
+                        items: new OA\Items(type: "string", example: "ROLE_USER", required: [])
+                    )
+                ]
+            )
+        ),
+        responses: [
+             new OA\Response(
+                response: 201,
+                description: "User created successfully",
+                content: new OA\JsonContent(
+                    type: "object",
+                    properties: [
+                        new OA\Property(property: "id", type: "integer", example: "1"),
+                        new OA\Property(property: "email", type: "string", example: "user@example.com"),
+                        new OA\Property(property: "roles", type: "array", items: new OA\Items(type: "string", example: "ROLE_USER")),
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 400,
+                description: "Invalid input",
+            ),
+        ],
+    )]
+    public function update(Request $request, string $uuid): Response
     {
-        $user = $this->entityManager->getRepository(User::class)->find($id);
+        $user = $this->entityManager->getRepository(User::class)->findOneBy(['uuid' => $uuid]);
+        $updatedUser = $this->serializer->deserialize($request->getContent(), User::class, 'json');
+
         if (!$user) {
             return new Response('User not found', Response::HTTP_NOT_FOUND);
         }
 
         $this->authorizeAdminOrOwner($user);
 
-        $data = json_decode($request->getContent(), true);
+        $user->setEmail($updatedUser->getEmail());
+        $user->setPassword($this->passwordEncoder->hashPassword($user, $updatedUser->getPassword()));
 
-        $user->setEmail($data['email']);
-        $user->setPassword($this->passwordEncoder->encodePassword($user, $data['password']));
-        $user->setRoles($data['roles'] ?? ['ROLE_USER']);
+        if ($this->isAdmin()) {
+            $user->setRoles($updatedUser->getRoles);
+        }
+
+        $this->entityManager->persist($user);
+        $this->entityManager->flush();
+
+        $context = (new ObjectNormalizerContextBuilder())
+            ->withGroups('list_user')
+            ->toArray();
+
+        $serializedUser = $this->serializer->serialize($user, 'json', $context);
 
         $this->entityManager->flush();
 
-        return new Response('User updated', Response::HTTP_OK);
+        return new JsonResponse($serializedUser, Response::HTTP_CREATED);
     }
 
     #[Route('/{id}', name: 'user_delete', methods: ['DELETE'])]
