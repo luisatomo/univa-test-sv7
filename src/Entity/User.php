@@ -6,10 +6,16 @@ use App\Repository\UserRepository;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
+use Symfony\Component\Serializer\Annotation\Groups;
+use Symfony\Component\Uid\Uuid;
+use App\Doctrine\IdGenerator\UuidGenerator;
 
 #[ORM\Entity(repositoryClass: UserRepository::class)]
 #[ORM\Table(name: '`user`')]
 #[ORM\UniqueConstraint(name: 'UNIQ_IDENTIFIER_EMAIL', fields: ['email'])]
+#[ORM\Index(name: "user_uuid", columns: ["uuid"])]
+#[ORM\HasLifecycleCallbacks]
+
 class User implements UserInterface, PasswordAuthenticatedUserInterface
 {
     #[ORM\Id]
@@ -18,12 +24,14 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     private ?int $id = null;
 
     #[ORM\Column(length: 180)]
+    #[Groups(['list_user'])]
     private ?string $email = null;
 
     /**
      * @var list<string> The user roles
      */
     #[ORM\Column]
+    #[Groups(['list_user'])]
     private array $roles = [];
 
     /**
@@ -31,6 +39,10 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
      */
     #[ORM\Column]
     private ?string $password = null;
+
+    #[ORM\Column(unique: true)]
+    #[Groups(['list_user'])]
+    private string $uuid;
 
     public function getId(): ?int
     {
@@ -106,4 +118,16 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         // If you store any temporary, sensitive data on the user, clear it here
         // $this->plainPassword = null;
     }
+
+    public function getUuid(): string
+    {
+        return $this->uuid;
+    }
+
+    #[ORM\PrePersist]
+    public function generateUuid(): void
+    {
+        $this->uuid = Uuid::v4()->toRfc4122();
+    }
+
 }

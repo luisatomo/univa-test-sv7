@@ -16,6 +16,7 @@ use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 use Symfony\Component\Serializer\SerializerInterface;
 use Nelmio\ApiDocBundle\Annotation\Security as OASecurity;
 use Nelmio\ApiDocBundle\Annotation\Model;
+use Symfony\Component\Serializer\Context\Normalizer\ObjectNormalizerContextBuilder;
 
 #[Route('/api/user')]
 class UserController extends AbstractController
@@ -38,7 +39,7 @@ class UserController extends AbstractController
             description: 'Returns an array of users',
             content: new OA\JsonContent(
                 type: 'array',
-                items: new OA\Items(ref: new Model(type: User::class))
+                items: new OA\Items(ref: new Model(type: User::class, groups: ['list_user']))
             )
         ),
         new OA\Response(
@@ -53,7 +54,10 @@ class UserController extends AbstractController
         } else {
             $users = [$this->getCurrentUser()];
         }
-        $serializedUsers = $this->serializer->serialize($users, 'json');
+        $context = (new ObjectNormalizerContextBuilder())
+            ->withGroups('list_user')
+            ->toArray();
+        $serializedUsers = $this->serializer->serialize($users, 'json', $context);
 
         return new JsonResponse($serializedUsers, Response::HTTP_OK, [], true);
     }
