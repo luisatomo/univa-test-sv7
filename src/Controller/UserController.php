@@ -80,11 +80,11 @@ class UserController extends AbstractController
             description: 'Not Authorized',
         )]
     )]
-    public function show(string $uuid): Response
+    public function show(string $uuid): JsonResponse
     {
         $user = $this->entityManager->getRepository(User::class)->findOneBy(['uuid' => $uuid]);
         if (!$user) {
-            return new Response('User not found', Response::HTTP_NOT_FOUND);
+            return new JsonResponse(['message' => 'User not found'], Response::HTTP_NOT_FOUND);
         }
 
         $this->authorizeAdminOrOwner($user);
@@ -125,7 +125,7 @@ class UserController extends AbstractController
                 content: new OA\JsonContent(
                     type: "object",
                     properties: [
-                        new OA\Property(property: "id", type: "integer", example: "1"),
+                        new OA\Property(property: "uuid", type: "string", example: "492d3d32-38cb-40c4-af14-4e7d5c080fe6"),
                         new OA\Property(property: "email", type: "string", example: "user@example.com"),
                         new OA\Property(property: "roles", type: "array", items: new OA\Items(type: "string", example: "ROLE_USER")),
                     ]
@@ -137,7 +137,7 @@ class UserController extends AbstractController
             ),
         ],
     )]
-    public function create(Request $request): Response
+    public function create(Request $request): JsonResponse
     {
         $this->denyAccessUnlessGranted('ROLE_ADMIN');
 
@@ -186,7 +186,7 @@ class UserController extends AbstractController
                 content: new OA\JsonContent(
                     type: "object",
                     properties: [
-                        new OA\Property(property: "id", type: "integer", example: "1"),
+                        new OA\Property(property: "uuid", type: "string", example: "492d3d32-38cb-40c4-af14-4e7d5c080fe6"),
                         new OA\Property(property: "email", type: "string", example: "user@example.com"),
                         new OA\Property(property: "roles", type: "array", items: new OA\Items(type: "string", example: "ROLE_USER")),
                     ]
@@ -198,13 +198,13 @@ class UserController extends AbstractController
             ),
         ],
     )]
-    public function update(Request $request, string $uuid): Response
+    public function update(Request $request, string $uuid): JsonResponse
     {
         $user = $this->entityManager->getRepository(User::class)->findOneBy(['uuid' => $uuid]);
         $updatedUser = $this->serializer->deserialize($request->getContent(), User::class, 'json');
 
         if (!$user) {
-            return new Response('User not found', Response::HTTP_NOT_FOUND);
+            return new JsonResponse(['message' => 'User not found'], Response::HTTP_NOT_FOUND);
         }
 
         $this->authorizeAdminOrOwner($user);
@@ -230,12 +230,33 @@ class UserController extends AbstractController
         return new JsonResponse($serializedUser, Response::HTTP_CREATED);
     }
 
-    #[Route('/{id}', name: 'user_delete', methods: ['DELETE'])]
-    public function delete(int $id): Response
+    #[Route('/{uuid}', name: 'user_delete', methods: ['DELETE'])]
+    #[OASecurity(name: 'Bearer')]
+    #[OA\Delete(
+        summary: "Deletes a user",
+        description: "Only admin can delete a user.",
+        responses: [
+            new OA\Response(
+               response: 200,
+               description: "User created successfully",
+               content: new OA\JsonContent(
+                   type: "object",
+                   properties: [
+                       new OA\Property(property: "message", type: "string", example: "User Deleted")
+                   ]
+               )
+           ),
+           new OA\Response(
+               response: 403,
+               description: "Forbidden Action",
+           ),
+        ],
+    )]
+    public function delete(string $uuid): JsonResponse
     {
-        $user = $this->entityManager->getRepository(User::class)->find($id);
+        $user = $this->entityManager->getRepository(User::class)->findOneBy(['uuid' => $uuid]);
         if (!$user) {
-            return new Response('User not found', Response::HTTP_NOT_FOUND);
+            return new JsonResponse(['message' => 'User not found'], Response::HTTP_NOT_FOUND);
         }
 
         $this->authorizeAdmin();
@@ -243,7 +264,7 @@ class UserController extends AbstractController
         $this->entityManager->remove($user);
         $this->entityManager->flush();
 
-        return new Response('User deleted', Response::HTTP_OK);
+        return new JsonResponse(['message' => 'User Deleted'], Response::HTTP_OK);
     }
 
     // Private methods
